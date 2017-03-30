@@ -9,6 +9,8 @@ targetDir = sys.argv[1]
 imgR = cv2.imread(os.path.join(targetDir, 'r.tif'), 0)
 imgG = cv2.imread(os.path.join(targetDir, 'g.tif'), 0)
 imgB = cv2.imread(os.path.join(targetDir, 'b.tif'), 0)
+bad = np.dstack((imgR, imgG, imgB))
+
 height, width = imgR.shape[:2] # Guaranteed to be same size for easy compositing
 shape = (width, height)
 
@@ -39,5 +41,7 @@ warpB = cv2.warpPerspective(imgB, rbH, shape)
 stacked = np.dstack((imgR, warpG, warpB))
 
 cv2.namedWindow("warped", cv2.WINDOW_NORMAL)
+cv2.imshow("warped", bad)
+cv2.waitKey(0)
 cv2.imshow("warped", stacked)
 cv2.waitKey(0)
