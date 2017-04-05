@@ -1,6 +1,9 @@
 *.tif
+*.tiff
 *.swp
 *.zip
+*.jpg
+*.png
 
 ## Core latex/pdflatex auxiliary files:
 *.aux
