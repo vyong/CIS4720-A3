@@ -45,3 +45,8 @@ cv2.imshow("warped", bad)
 cv2.waitKey(0)
 cv2.imshow("warped", stacked)
 cv2.waitKey(0)
+
+# For some reason, imwrite to tiff doesn't seem to work right
+# So for now we'll just output to PNG
+cv2.imwrite(os.path.join(targetDir, 'composite.png'), stacked)
+#cv2.imwrite(os.path.join(targetDir, 'composite.tif'), stacked)
