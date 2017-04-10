@@ -23,14 +23,14 @@ kpB, desB = surf.detectAndCompute(imgB, None)
 bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
 
 matches = bf.match(desR, desG)
-goodMatches = [match for match in matches if match.distance <= 0.25]
+goodMatches = [match for match in matches if match.distance <= 0.10]
 
 matchR = np.array([kpR[match.queryIdx].pt for match in goodMatches])
 matchG = np.array([kpG[match.trainIdx].pt for match in goodMatches])
 rgH, mask = cv2.findHomography(matchG, matchR, cv2.RANSAC)
 
 matches = bf.match(desR, desB)
-goodMatches = [match for match in matches if match.distance <= 0.25]
+goodMatches = [match for match in matches if match.distance <= 0.10]
 matchR = np.array([kpR[match.queryIdx].pt for match in goodMatches])
 matchB = np.array([kpB[match.trainIdx].pt for match in goodMatches])
 rbH, mask = cv2.findHomography(matchB, matchR, cv2.RANSAC)
