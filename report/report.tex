@@ -1,10 +1,83 @@
 \documentclass[10pt]{IEEEtran}
 
-\title{Applying The SURF Algorithm to the Prokudin-Gorskii Image Set}
-\author{Jeffrey David-Kapp, Sebastian Lenartowicz, and Vincent Yong}
+\title{Applying The SURF Algorithm to Prokudin-Gorskii Image Sets}
+\author{Jeffrey-David Kapp, Sebastian Lenartowicz, and Vincent Yong
+\linebreak
+\today}
+
+\usepackage{listings}
+\lstset{  language=Python, basicstyle=\footnotesize\ttfamily }
 
 \begin{document}
-	\maketitle
+\maketitle
+
+
+
+\section{SURF}
+
+\subsection{The Algorithm}
+
+The algorithm we've used to composite the Prokudin-Gorskii images is the "speeded up robust features" (SURF), a feature detector and descriptor commonly used in object recognition, image registration, and image classification. SURF operates three main parts, detection, description, and matching.
+\linebreak
+
+In general, each componant functions as follows: SURF feature detection uses the determinate of a Hessian matrix. Points on the image where this determinate is amongst the highest are chosen as "keypoints". SURF's image descriptor first determines the reproducable orientations of the chosen keypoints, then builing a square region aligned with it orientation, and a descriptor is built using the sums of several levels of Haar wavelets. Matching is done by finding matching pairs of descriptors in several images. 
+
+\subsection{Our Implementation}
+
+We're using OpenCV and thier implementation of SURF. What follows is a description of how we used this package in the compositing of Prokudin-Gorskii images.
+
+All source code is drawn from surf.py found in our submission directory. 
+
+\begin{lstlisting}
+imgR = cv2.imread(os.path.join(targetDir, 'r.tif'), 0)
+imgG = cv2.imread(os.path.join(targetDir, 'g.tif'), 0)
+imgB = cv2.imread(os.path.join(targetDir, 'b.tif'), 0)
+bad = np.dstack((imgR, imgG, imgB))
+
+height, width = imgR.shape[:2]
+shape = (width, height)
+\end{lstlisting}
+
+This part is reading in the .tif images corresponding to Red, Green, and Blue and doing a rough composition that hasn't been aligned at all. Examples of this images will be included in the experiment examples. R, G, and B are in seperate files as we've segmented each image set by hand. Each image is exactly the same size. 
+
+\begin{lstlisting}
+surf = cv2.xfeatures2d.SURF_create()
+
+kpR, desR = surf.detectAndCompute(imgR, None)
+kpG, desG = surf.detectAndCompute(imgG, None)
+kpB, desB = surf.detectAndCompute(imgB, None)
+
+bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
+\end{lstlisting}
+
+This is the invocation of the SURF algorithm. It will detect and build the discriptors of key points one each of the R, G, and B image, and store the key points themselves in kpX and descriptors in desX. bf is simply a brute force matcher that OpenCV provides. 
+
+\begin{lstlisting}
+matches = bf.match(desR, desG)
+goodMatches = [m for m in matches if m.distance <= 0.10]
+matchR = np.array([kpR[m.queryIdx].pt for m in goodMatches])
+matchG = np.array([kpG[m.trainIdx].pt for m in goodMatches])
+rgH, mask = cv2.findHomography(matchG, matchR, cv2.RANSAC)
+\end{lstlisting}
+
+This code snippet first matches the descriptors of key points in the Red and Green images. It discards all matches that are shifted from one another by more than 10\% of the image's total size. It segregates the matched keypoints by the origin image, and then uses this array of keypoints to find the homography of the keypoints. RANSAC is just one of many way of doing this. It then does all of this again but for Red and Blue images. 
+
+\begin{lstlisting}
+warpG = cv2.warpPerspective(imgG, rgH, shape)
+warpB = cv2.warpPerspective(imgB, rbH, shape)
+
+stacked = np.dstack((imgR, warpG, warpB))
+\end{lstlisting}
+
+New images are then created for Green and Blue which have been aligned with the keypoints of the Red image. These are then composited together for the final image. 
+
+\section{Experiments}
+
+10, 11, 26, 31, 111, 152, 223, 384(failed)
+
+
+
+		
 
 %	Uncomment this when there's actually some references
 %	It expects references.bib
