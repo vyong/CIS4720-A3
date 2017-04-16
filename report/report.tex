@@ -1,214 +1,109 @@
 \documentclass[10pt]{IEEEtran}
 
-\title{Applying The SURF Algorithm to Prokudin-Gorskii Image Sets}
-\author{Jeffrey-David Kapp, Sebastian Lenartowicz, and Vincent Yong
-\linebreak
-\today}
+\title{Applying The SURF Algorithm to the Prokudin-Gorskii Image Set}
+\author{Jeffrey-David Kapp, Sebastian Lenartowicz, and Vincent Yong}
 
 \usepackage{listings}
-\lstset{  language=Python, basicstyle=\footnotesize\ttfamily }
-
+\usepackage{color}
 \usepackage{graphicx}
-\usepackage[section]{placeins}
+\usepackage{subfig}
+
+% Colours for Python syntax highlighting (doesn't work out of the box)
+\definecolor{deepblue}{rgb}{0,0,0.5}
+\definecolor{deepred}{rgb}{0.6,0,0}
+\definecolor{deepgreen}{rgb}{0,0.5,0}
+
+\lstset{
+	language=Python,
+	basicstyle=\footnotesize\ttfamily,
+	keywordstyle=\color{deepblue},
+	stringstyle=\color{deepred},
+	commentstyle=\color{deepgreen},
+	showstringspaces=false
+}
+
+\newcommand{\composite}[1]{
+	\centering
+	\subfloat[``Raw'' composite.]{\includegraphics[width=0.45\textwidth]{../#1/original.png}}
+	\hspace{0.05\textwidth}
+	\subfloat[Composited image.]{\includegraphics[width=0.45\textwidth]{../#1/composite.png}}
+}
 
 \begin{document}
 \maketitle
 
+	\section{Introduction}
+	Since their rediscovery in 1948, the Prokudin-Gorskii images have attracted considerable academic attention for a variety of reasons. In computer science, this interest most often takes the form of testing image-registration and compositing algorithms \cite{minachin2007reconstruction} due to their unique structure; each image consists of three greyscales, which correspond to the three RGB channels. Though nominally centered on the same subject and aligned to each other, the image sets have slight but noticeable misalignment, which renders na\"ive compositing worthless -- the resultant image from simple compositing resembles the input to R/B 3D glasses more so than it does an actual colour photograph. By applying image-registration algorithms -- typically used in GIS and other areas where image mosaicking is a common activity -- it becomes possible to quickly and effectively composite these images and reveal the stunning colours of Imperial Russia. In order to do this, we apply the Speeded Up Robust Features (SURF) algorithm \cite{bay2006surf}, which is specifically designed for image pairs in which brightness values for the same objects may vary considerably.
 
+	\section{Compositing the Images}
+		Our image compositor, at its core, relies upon the OpenCV implementation of the SURF algorithm. It begins by loading each channel from a separate file, then using the red channel as a ``baseline'' from which to do SURF comparisons. The green and blue channels are both compared against the red, and the resultant keypoints matched against each other. If there is a difference in their position of less than 10\% of the image size, they are considered to be acceptable. Following this, the keypoints are used to find a homography (set of transformations) between the blue/green channels and the red channels. The transformations are then applied, and the resulting images composited onto each other to yield the final output. The full source code for the compositor can be found in Figure \ref{fig:code}.
 
-\section{SURF}
+	\section{Experiments}
+		In order to test this approach, we selected 65 images from the Library of Congress' digitized collection. Each image was downloaded, and the three colour channels were manually cropped from the single file provided by the Library. These three files were then provided as input to the compositor, with the output being both a ``raw'' (unaligned) composite and the automatically aligned image.
 
-\subsection{The Algorithm}
+		Of the 65 images tested, three failed to composite correctly and a fourth composited mostly correctly. In this case, a failure to composite refers to an image in which one or more channels are misaligned or distorted relative to the others, and a partial failure refers to an image in which the primary subject(s) are aligned correctly but some portion of the image is not.
 
-The algorithm used to composite the Prokudin-Gorskii images is the "speeded up robust features" (SURF), a feature detector and descriptor commonly used in object recognition, image registration, and image classification. SURF operates three main parts, detection, description, and matching.
-\linebreak
+		Due to the need for a manual cropping process, large colour bars, where the greyscale channel images do not quite overlap, appear in most of the composited images. These can be eliminated by better cropping or automatic segmentation.
 
-In general, each componant functions as follows: SURF feature detection uses the determinate of a Hessian matrix. Points on the image where this determinate is amongst the highest are chosen as "keypoints". SURF's image descriptor first determines the reproducable orientations of the chosen keypoints, then builing a square region aligned with it orientation, and a descriptor is built using the sums of several levels of Haar wavelets. Matching is done by finding matching pairs of descriptors in several images. 
+	\section{Conclusions}
+		Though the power of SURF in automatically aligning Prokudin-Gorskii images is clear, its limitations are clear as well. Because SURF often identifies keypoints that do not correspond to each other, it is necessary to employ some form of filtering -- often distance-based. In general, however, SURF was successful at compositing the images, and, with some form of adaptive thresholding parameter, could likely successfully align the failed images as well.
 
-\subsection{Our Implementation}
+	\bibliographystyle{IEEEtran}
+	\bibliography{IEEEabrv,references}
 
-Implementation is done via OpenCV's implementation of the SURF algorithm. What follows is a description of how OpenCV was used to composite Prokudin-Gorskii images.
-
-All source code is drawn from surf.py found in the submission directory. 
-
-\begin{lstlisting}
-imgR = cv2.imread(os.path.join(targetDir, 'r.tif'), 0)
-imgG = cv2.imread(os.path.join(targetDir, 'g.tif'), 0)
-imgB = cv2.imread(os.path.join(targetDir, 'b.tif'), 0)
-bad = np.dstack((imgR, imgG, imgB))
-
-height, width = imgR.shape[:2]
-shape = (width, height)
-\end{lstlisting}
-
-This part is reading in the .tif images corresponding to Red, Green, and Blue and doing a rough composition that has not been aligned at all. Examples of these images will be included in the experiment examples. R, G, and B are in seperate files as each image has been segmented by hand. Each image is also exactly the same size. 
-
-\begin{lstlisting}
-surf = cv2.xfeatures2d.SURF_create()
-
-kpR, desR = surf.detectAndCompute(imgR, None)
-kpG, desG = surf.detectAndCompute(imgG, None)
-kpB, desB = surf.detectAndCompute(imgB, None)
-
-bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=False)
-\end{lstlisting}
-
-This is the invocation of the SURF algorithm. It will detect and build the discriptors of key points one each of the R, G, and B image, and store the key points themselves in kpX and descriptors in desX. bf is simply a brute force matcher that OpenCV provides. 
-
-\begin{lstlisting}
-matches = bf.match(desR, desG)
-goodMatches = [m for m in matches if m.distance <= 0.10]
-matchR = np.array([kpR[m.queryIdx].pt for m in goodMatches])
-matchG = np.array([kpG[m.trainIdx].pt for m in goodMatches])
-rgH, mask = cv2.findHomography(matchG, matchR, cv2.RANSAC)
-\end{lstlisting}
-
-This code snippet first matches the descriptors of key points in the Red and Green images. It discards all matches that are shifted from one another by more than 10\% of the image's total size. It segregates the matched keypoints by the origin image, and then uses this array of keypoints to find the homography of the keypoints using the RANSAC method. It then does all of this again but for Red and Blue images.  
-
-\begin{lstlisting}
-warpG = cv2.warpPerspective(imgG, rgH, shape)
-warpB = cv2.warpPerspective(imgB, rbH, shape)
-
-stacked = np.dstack((imgR, warpG, warpB))
-\end{lstlisting}
-
-New images are then created for Green and Blue which have been aligned with the keypoints of the Red image. These are then composited together for the final image. 
-
-\section{Experiments}
-
-10, 11, 26, 31, 111, 152, 223, 384(failed)
-
-The following are 8 example images from our testing of SURF's applicability to processing Prokudin-Gorskii images. testing was done with a total of 65 images, these 8 best exemplify the effectiveness and potential failure of SURF in composing images. Each origin image set can be found in it's respective directory in a .tif, along with the r, b, and g segmentation, and the rough and SURF aligned compositions called "original" and "composite" respectively. The origin image sets will not be included in this report, just the rough and aligned composites. 
-
-Images will begin on the next page.
-\newpage
-
-\begin{figure}[!htb]
-\caption{Rough Composite 00010a}
-\includegraphics[scale=0.07]{../00010a/original}
-\end{figure}
-
-\begin{figure}[!htb]
-\caption{SURF Aligned Composite 00010a}
-\includegraphics[scale=0.07]{../00010a/composite}
-\end{figure}
-
-Here, the offset of the green image can be seen in the rough composite, mainly underneath each of the bags and the camel. The SURF aligned images have mostly elimated these, except about mid way through the camel's neck, and the large green bar at the bottom. Coloured bars like this are caused by the shifting of the Green and Blue images, and will be a common feature in all of the aligned images.
-
-\FloatBarrier
-
-\begin{figure}[!htb]
-\caption{Rough Composite 00011a}
-\includegraphics[scale=0.07]{../00011a/original}
-\end{figure}
-
-\begin{figure}[!htb]
-\caption{SURF Aligned Composite 00011a}
-\includegraphics[scale=0.07]{../00011a/composite}
-\end{figure}
-
-\FloatBarrier
-
-This is a picuter of presumably the same camel and now its owner. Same green ghosting along bottom lines and the same green bar along the bottom of the alinged image. 
-
-
-\begin{figure}[!htb]
-\caption{Rough Composite 00031a}
-\includegraphics[scale=0.07]{../00031a/original}
-\end{figure}
-
-\begin{figure}[!htb]
-\caption{SURF Aligned Composite 00031a}
-\includegraphics[scale=0.07]{../00031a/composite}
-\end{figure}
-
-\FloatBarrier
-
-Rough composite looks decent, but there is some shift in the blue image a bit, noted by the yellow ghosting around right sides of the candle holder? and the door handle. This is eliminated in the aligned image. 
-
-\begin{figure}[!htb]
-\caption{Rough Composite 00111a}
-\includegraphics[scale=0.07]{../00111a/original}
-\end{figure}
-
-\begin{figure}[!htb]
-\caption{SURF Aligned Composite 00111a}
-\includegraphics[scale=0.07]{../00111a/composite}
-\end{figure}
-
-\FloatBarrier
-
-Blue image is shifted downwards, causing some blue outline along the bottom and yellow outline along the top of the ruins's features. There is also some green along the yellow outlines and purple near the bottom as the red image is very off centre. These are elimated in the aligned image, save for a few coloured splotches cause by different capture atrifacts in each image. 
-
-
-\begin{figure}[!htb]
-\caption{Rough Composite 00152a}
-\includegraphics[scale=0.07]{../00152a/original}
-\end{figure}
-
-\begin{figure}[!htb]
-\caption{SURF Aligned Composite 00152a}
-\includegraphics[scale=0.07]{../00152a/composite}
-\end{figure}
-
-\FloatBarrier
-
-The Emir of Bukhara. There quite a bit of shift in the red and green images. Again, these are elimated in the SURF alinged image. 
-
-\begin{figure}[!htb]
-\caption{Rough Composite 00223a}
-\includegraphics[scale=0.07]{../00223a/original}
-\end{figure}
-
-\begin{figure}[!htb]
-\caption{SURF Aligned Composite 00223a}
-\includegraphics[scale=0.07]{../00223a/composite}
-\end{figure}
-
-\FloatBarrier
-
-The negative for the green image is very damaged. There is also a lot of shift with all three colours. The alogrithm lines up the grain silo well, but the grass and flowers in the foreground are still shifted quite a bit. 
-
-
-\begin{figure}[!htb]
-\caption{Rough Composite 00026a}
-\includegraphics[scale=0.07]{../00026a/original}
-\end{figure}
-
-\begin{figure}[!htb]
-\caption{SURF Aligned Composite 00026a}
-\includegraphics[scale=0.07]{../00026a/composite}
-\end{figure}
-
-\FloatBarrier
-There is a considerable angle in the red image, as the perspective warpper tried and failed to realign based on the homograph built using the output of SURF. This is likely due to missing keypoints caused by the distance threshold of 10\%. Adjustments to this threshold can cause wildly different results. Increasing it to 25\% will aloow this image to process correctly, but will cause other images to begin failing.  SURF may be matching keypoints that are not acutally the same feature in the image or keypoints may genuinely be greater than that distance away from each other.   
-
-\begin{figure}[!htb]
-\caption{Rough Composite 00384a}
-\includegraphics[scale=0.07]{../00384a/original}
-\end{figure}
-
-\begin{figure}[!htb]
-\caption{SURF Aligned Composite 00384a}
-\includegraphics[scale=0.07]{../00384a/composite}
-\end{figure}
-
-\FloatBarrier
-
-Second image with the same failed results as 00026a, and likely for the same reasons as well.
+		\begin{figure*}
+			\lstinputlisting{../surf.py}
+			\caption{Source code for the image compositor.}
+			\label{fig:code}
+		\end{figure*}
 
 \newpage
 
-\section{Conclusion}
+\begin{figure*}
+	\composite{00010a}
 
-Along with 00026a and 00384a, two other images failed, for a success rate of 61 out of 65. Many of the success are better than others, but generally SURF a good job at identifying features and building descriptors with which the rest of the code can acurately line up the colour images. The distance threshold used to filter matches is definitely a number that can be experimented and adjusted more to see if an ideal value can be determined. 
+	\caption{Image 00010a: The Camel. In this image, the compositor succeeded in correctly aligning the three channels. The small amount of colour ``ghosting'' around the middle of the camel's neck is likely a result of it having moved while having its photo taken.}
+\end{figure*}
 
+\begin{figure*}
+	\composite{00011a}
 
+	\caption{Image 00011a: Camel with Handler. Here again, the compositor succeeded in aligning the three channels. Some ghosting is visible around the camel's ears due to the difficulty in making an animal remain completely still. Additionally, the image has suffered some degradation, resulting in the large bright spot on the bag on the camel's back.}
+\end{figure*}
 
-		
+\begin{figure*}
+	\composite{00031a}
 
-%	Uncomment this when there's actually some references
-%	It expects references.bib
-%	\bibliographystyle{IEEEtran}
-%	\bibliography{IEEEabrv,references}
+	\caption{Image 00031a: Church Candle Holder. Though the crop was inadvertently nearly perfect, some mismatching is still visible. The compositor was able to address this quite neatly. This image has suffered significant degradation at the upper and lower left corners, and subtle vignetting at the top.}
+\end{figure*}
+
+\begin{figure*}
+	\composite{00111a}
+
+	\caption{Image 00111a: The Ruin. Though only slightly misaligned, the compositor was nonetheless able to elicit improvement and align the channels perfectly. Some image degradation is evident along the right edge.}
+\end{figure*}
+
+\begin{figure*}
+	\composite{00152a}
+
+	\caption{Image 00152a: Alim Khan, Emir of Bukhara. This image is noteworthy in that, if the compositor is re-run with the distance parameter set to 25\%, there is significant distortion, resulting in a failed composite. Decreasing the threshold to 10\% results in the composite seen here.}
+\end{figure*}
+
+\begin{figure*}
+	\composite{00223a}
+
+	\caption{Image 00223a: The Windmill. The only example of a partial failure in our experiments -- though the field and building were aligned correctly, the red channel was somewhat distorted in the upper left corner. It is also evident that the glass negative was smashed at some point in its existence.}
+\end{figure*}
+
+\begin{figure*}
+	\composite{00026a}
+
+	\caption{Image 00026a: The Wooden Saints. One of three complete failures in our image set, in which the red channel became significantly distorted compared to the green and blue. Though this image composites correctly when the distance threshold is set to 25\%, this causes other images to fail.}
+\end{figure*}
+
+\begin{figure*}
+	\composite{00384a}
+
+	\caption{Image 00384a: The Reliquary. Like 00026a, this image fails to composite correctly. Unlike 00026a, however, it also fails when the threshold is set to 25\% -- this image, in fact, represents an improvement in performance vs. the 25\% threshold composite.}
+\end{figure*}
 \end{document}
